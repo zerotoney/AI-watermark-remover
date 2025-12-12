@@ -95,7 +95,9 @@ const App: React.FC = () => {
       let errorMessage = err.message || "Failed";
       
       if (errorMessage.includes('403') || errorMessage.includes('PERMISSION_DENIED')) {
-        errorMessage = "Permission Denied (403). Check API Key.";
+        errorMessage = "Permission Denied. Check API Key.";
+      } else if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+        errorMessage = "Quota Exceeded (429). Please wait.";
       }
 
       updateImageStatus(id, { 
@@ -110,11 +112,19 @@ const App: React.FC = () => {
     
     setState(prev => ({ ...prev, isBatchProcessing: true }));
 
-    // Parallel Processing: Use Promise.all to process all images concurrently
     const toProcess = state.images.filter(img => img.status === 'PENDING' || img.status === 'ERROR');
     
-    // We limit concurrency slightly just to be safe, but Promise.all is fine for reasonable batches
-    await Promise.all(toProcess.map(img => processImage(img.id)));
+    // SEQUENTIAL PROCESSING (Queue)
+    // We process one by one to avoid 429 Resource Exhausted errors on Free Tier
+    for (const img of toProcess) {
+      // Select the current image so the user sees what's happening
+      setState(prev => ({ ...prev, selectedId: img.id }));
+      
+      await processImage(img.id);
+      
+      // Add a small delay between requests to be kind to the API rate limiter
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
 
     setState(prev => ({ ...prev, isBatchProcessing: false }));
   };
@@ -151,13 +161,13 @@ const App: React.FC = () => {
                  <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                  <div className="text-sm text-yellow-200/90">
                     <p className="font-semibold text-yellow-100 mb-1">API Usage & Safety</p>
-                    <p>Requires a valid Gemini API Key. Some images may be blocked by AI safety filters if they contain people or copyrighted logos.</p>
+                    <p>Requires a valid Gemini API Key. Free keys have strict rate limits, so we process images one by one.</p>
                  </div>
               </div>
             </div>
             
             <p className="text-xs text-gray-500 mt-6">
-              Model: <code>gemini-2.5-flash-image</code> • Preserves Aspect Ratio • Parallel Processing
+              Model: <code>gemini-2.5-flash-image</code> • Preserves Aspect Ratio • Queue Processing
             </p>
           </div>
         )}
