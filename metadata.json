@@ -1,0 +1,5 @@
+{
+  "name": "WatermarkRemover AI",
+  "description": "A professional tool to remove watermarks from images using the Gemini 2.5 Flash Image model. Users can bring their own API key for privacy and control.",
+  "requestFramePermissions": []
+}
